@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>宮崎県 観光地掲示板</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+    .spot, .post { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+    .spot h2 { margin-top: 0; }
+    button { cursor: pointer; padding: 5px 10px; }
+    #board { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="top">
+  <h1>宮崎県 おすすめスポット</h1>
+  
+  <button id="toggle-form-btn" onclick="toggleAddSpotForm()" style="margin-bottom: 15px; font-weight: bold;">＋ おすすめスポットを追加する</button>
+
+  <div id="add-spot-form" class="spot" style="background-color: #f0f8ff; display: none;">
+    <h3>新しいおすすめスポットを追加する</h3>
+    <input type="text" id="new-spot-name" placeholder="スポット名 (必須)" required style="width: 100%; margin-bottom: 10px;"><br>
+    <textarea id="new-spot-desc" rows="3" placeholder="スポットの簡単な説明" style="width: 100%; margin-bottom: 10px;"></textarea><br>
+    <input type="url" id="new-spot-map" placeholder="Googleマップの共有URL (任意)" style="width: 100%; margin-bottom: 10px;"><br>
+    
+    <hr style="border: 1px solid #ccc; margin: 15px 0;">
+    
+    <h4>最初の投稿（必須）</h4>
+    <input type="text" id="new-spot-post-name" placeholder="あなたの名前 (未入力で匿名)" style="width: 100%; margin-bottom: 10px;"><br>
+    <textarea id="new-spot-post-content" rows="4" placeholder="おすすめの理由や感想など" required style="width: 100%; margin-bottom: 10px;"></textarea><br>
+    <input type="file" id="new-spot-image" accept="image/*" style="margin-bottom: 10px;"><br>
+    
+    <button id="submit-spot-btn" onclick="submitSpot()">スポットを追加して投稿する</button>
+    <button onclick="toggleAddSpotForm()" style="margin-left: 10px;">キャンセル</button>
+  </div>
+
+  <div id="spot-list">読み込み中...</div>
+</div>
+
+<div id="board">
+  <button onclick="showTop()">← おすすめスポット一覧に戻る</button>
+  <h1 style="display: inline-block; margin-right: 15px;" id="board-title"></h1>
+  <a id="board-map-link" href="#" target="_blank" style="display:none; color: #1a73e8; font-weight: bold; text-decoration: none;">🗺️ Googleマップで開く</a>
+
+  <div class="spot">
+    <h3 id="post-form-title">新しく投稿する</h3>
+    
+    <div id="reply-info" style="display:none; background-color: #e9ecef; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+      <span id="reply-to-text" style="font-weight: bold; margin-right: 10px;"></span>
+      <button onclick="cancelReply()">キャンセル</button>
+    </div>
+
+    <input type="text" id="post-name" placeholder="名前 (未入力で匿名)" style="width: 100%; margin-bottom: 10px;"><br>
+    <textarea id="post-content" rows="4" placeholder="本文" required style="width: 100%; margin-bottom: 10px;"></textarea><br>
+    <input type="file" id="post-image" accept="image/*" style="margin-bottom: 10px;"><br>
+    <button id="submit-btn" onclick="submitPost()">送信</button>
+  </div>
+
+  <h3>投稿一覧</h3>
+  <div id="post-list">読み込み中...</div>
+</div>
+
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycby8fCHjI5tTeWNItVvOrIDobnQIRzeYRbBF3Qn96Ed6wcypksV72BJKUGiv81C2v63loQ/exec';
+    let currentSpotId = '';
+    let currentParentId = '';
+    let currentParentName = '';
+
+    function toggleAddSpotForm() {
+      const form = document.getElementById('add-spot-form');
+      const btn = document.getElementById('toggle-form-btn');
+      if (form.style.display === 'none' || form.style.display === '') {
+        form.style.display = 'block';
+        btn.style.display = 'none';
+      } else {
+        form.style.display = 'none';
+        btn.style.display = 'inline-block';
+      }
+    }
+
+    function showTop() {
+      document.getElementById('top').style.display = 'block';
+      document.getElementById('board').style.display = 'none';
+      cancelReply(); // 画面遷移時に返信状態をリセットする
+    }
+    
+    function showBoard(spotId, spotName, mapUrl) {
+      currentSpotId = spotId;
+      document.getElementById('top').style.display = 'none';
+      document.getElementById('board').style.display = 'block';
+      document.getElementById('board-title').innerText = spotName + ' の掲示板';
+      
+      const mapLink = document.getElementById('board-map-link');
+      if (mapUrl && mapUrl !== 'undefined') {
+        mapLink.href = mapUrl;
+        mapLink.style.display = 'inline-block';
+      } else {
+        mapLink.style.display = 'none';
+      }
+      
+      loadPosts();
+    }
+    
+    // 返信ボタンを押した際の処理
+    function setReply(postId, postName) {
+      currentParentId = postId;
+      currentParentName = postName || '匿名';
+      document.getElementById('post-form-title').innerText = '返信する';
+      document.getElementById('reply-info').style.display = 'block';
+      document.getElementById('reply-to-text').innerText = '>> ' + currentParentName + ' さんへの返信';
+      document.getElementById('post-content').focus();
+    }
+    
+    // 返信をキャンセルする処理
+    function cancelReply() {
+      currentParentId = '';
+      currentParentName = '';
+      document.getElementById('post-form-title').innerText = '新しく投稿する';
+      document.getElementById('reply-info').style.display = 'none';
+    }
+    
+    window.onload = async function() {
+      await loadSpots();
+    };
+    
+    async function loadSpots() {
+      const list = document.getElementById('spot-list');
+      try {
+        const response = await fetch(`${API_URL}?mode=spots`);
+        const spots = await response.json();
+        list.innerHTML = '';
+        
+        if(spots.length === 0) {
+          list.innerHTML = '観光地データがありません。';
+          return;
+        }
+        
+        spots.forEach(spot => {
+          const div = document.createElement('div');
+          div.className = 'spot';
+          let htmlContent = `<h2>${spot.name}</h2>`;
+          if (spot.description) {
+            htmlContent += `<p>${spot.description}</p>`;
+          }
+          if (spot.imageUrl) {
+            htmlContent += `<img src="${spot.imageUrl}" alt="${spot.name}" style="max-width: 100%; height: auto;"><br>`;
+          }
+          htmlContent += `<br><button onclick="showBoard('${spot.spotId}', '${spot.name}', '${spot.mapUrl || ''}')">掲示板を見る</button>`;
+          
+          div.innerHTML = htmlContent;
+          list.appendChild(div);
+        });
+      } catch (e) {
+        list.innerHTML = '観光地データの取得に失敗しました。';
+      }
+    }
+
+    async function loadPosts() {
+      console.log(data);
+      const list = document.getElementById('post-list');
+      list.innerHTML = '読み込み中...';
+      try {
+        const response = await fetch(`${API_URL}?spotId=${currentSpotId}&t=${new Date().getTime()}`);
+        const data = await response.json();
+
+        if (data.error) {
+          list.innerHTML = 'エラーが発生しました: ' + data.error;
+          return;
+        }
+
+        list.innerHTML = '';
+        if(data.length === 0) {
+          list.innerHTML = 'まだ投稿がありません。';
+          return;
+        }
+
+        data.forEach(post => {
+          const div = document.createElement('div');
+          div.className = 'post';
+          
+          let replyHtml = '';
+          // 返信の場合はデザインを変更して宛先を表示する
+          if (post.parentId) {
+            replyHtml = `<div style="font-size: 0.85em; color: #555; background: #f0f0f0; padding: 5px; border-radius: 3px; margin-bottom: 10px;">>> ${post.parentName || '匿名'} さんへの返信</div>`;
+            div.style.marginLeft = '20px';
+            div.style.borderLeft = '3px solid #ccc';
+          }
+          
+          let htmlContent = `${replyHtml}<strong>${post.name}</strong> <small>(${post.date})</small><br><br>${post.content}`;
+          
+          if (post.imageUrl) {
+            htmlContent += `<br><img src="${post.imageUrl}" style="max-width: 100%; max-height: 300px; margin-top: 10px;">`;
+          }
+          
+          htmlContent += `<br><button onclick="setReply('${post.id}', '${post.name}')" style="margin-top: 10px; font-size: 0.9em;">返信する</button>`;
+          
+          div.innerHTML = htmlContent;
+          list.appendChild(div);
+        });
+      } catch (e) {
+        list.innerHTML = '通信またはデータの取得に失敗しました。';
+      }
+    }
+
+    async function submitPost() {
+      const nameVal = document.getElementById('post-name').value;
+      const contentVal = document.getElementById('post-content').value;
+      const imageInput = document.getElementById('post-image');
+      const submitBtn = document.getElementById('submit-btn');
+
+      if (!contentVal) {
+        alert('本文を入力してください。');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = '送信中...';
+
+      if (imageInput.files.length > 0) {
+        const file = imageInput.files[0];
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = function() {
+          const base64Data = reader.result.split(',')[1];
+          sendDataToGAS(nameVal, contentVal, base64Data, file.type, file.name);
+        };
+        reader.onerror = function() {
+          alert('画像の読み込みに失敗しました。');
+          submitBtn.disabled = false;
+          submitBtn.innerText = '送信';
+        };
+      } else {
+        sendDataToGAS(nameVal, contentVal, "", "", "");
+      }
+
+      async function sendDataToGAS(name, content, imageB64, imageMime, imageName) {
+        const data = { 
+          spotId: currentSpotId, 
+          name: name, 
+          content: content,
+          imageB64: imageB64,
+          imageMime: imageMime,
+          imageName: imageName,
+          parentId: currentParentId,      // 親投稿IDを送信
+          parentName: currentParentName   // 親投稿者名を送信
+        };
+
+        try {
+          await fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'text/plain' }
+          });
+          
+          document.getElementById('post-content').value = '';
+          document.getElementById('post-name').value = '';
+          document.getElementById('post-image').value = ''; 
+          
+          setTimeout(() => {
+            loadPosts();
+            submitBtn.disabled = false;
+            submitBtn.innerText = '送信';
+            cancelReply(); // 送信完了後に返信状態をリセットする
+          }, 1500); 
+        } catch (e) {
+          alert('通信エラーが発生しました。');
+          submitBtn.disabled = false;
+          submitBtn.innerText = '送信';
+        }
+      }
+    }
+
+    async function submitSpot() {
+      const spotNameVal = document.getElementById('new-spot-name').value;
+      const descVal = document.getElementById('new-spot-desc').value;
+      const mapUrlVal = document.getElementById('new-spot-map').value;
+      const postNameVal = document.getElementById('new-spot-post-name').value;
+      const postContentVal = document.getElementById('new-spot-post-content').value;
+      const imageInput = document.getElementById('new-spot-image');
+      const submitBtn = document.getElementById('submit-spot-btn');
+
+      if (!spotNameVal) {
+        alert('スポット名を入力してください。');
+        return;
+      }
+      if (!postContentVal) {
+        alert('最初の投稿として、おすすめの理由や感想を入力してください。');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = '追加中...';
+
+      if (imageInput.files.length > 0) {
+        const file = imageInput.files[0];
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = function() {
+          const base64Data = reader.result.split(',')[1];
+          sendSpotToGAS(spotNameVal, descVal, postNameVal, postContentVal, mapUrlVal, base64Data, file.type, file.name);
+        };
+        reader.onerror = function() {
+          alert('画像の読み込みに失敗しました。');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'スポットを追加して投稿する';
+        };
+      } else {
+        sendSpotToGAS(spotNameVal, descVal, postNameVal, postContentVal, mapUrlVal, "", "", "");
+      }
+
+      async function sendSpotToGAS(spotName, description, postName, postContent, mapUrl, imageB64, imageMime, imageName) {
+        const data = { 
+          type: 'spot',
+          spotName: spotName, 
+          description: description,
+          postName: postName,
+          postContent: postContent,
+          mapUrl: mapUrl,
+          imageB64: imageB64,
+          imageMime: imageMime,
+          imageName: imageName
+        };
+
+        try {
+          await fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'text/plain' }
+          });
+          
+          document.getElementById('new-spot-name').value = '';
+          document.getElementById('new-spot-desc').value = '';
+          document.getElementById('new-spot-map').value = '';
+          document.getElementById('new-spot-post-name').value = '';
+          document.getElementById('new-spot-post-content').value = '';
+          document.getElementById('new-spot-image').value = ''; 
+          
+          setTimeout(() => {
+            loadSpots(); 
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'スポットを追加して投稿する';
+            
+            const form = document.getElementById('add-spot-form');
+            const btn = document.getElementById('toggle-form-btn');
+            form.style.display = 'none';
+            btn.style.display = 'inline-block';
+          }, 1500); 
+        } catch (e) {
+          alert('通信エラーが発生しました。');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'スポットを追加して投稿する';
+        }
+      }
+    }
+  </script>
+</body>
+</html>
