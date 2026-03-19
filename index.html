@@ -16,8 +16,10 @@
 <div id="top">
   <h1>宮崎県 おすすめスポット</h1>
   
-  <div class="spot" style="background-color: #f0f8ff;">
-    <h3>あいうえ</h3>
+  <button id="toggle-form-btn" onclick="toggleAddSpotForm()" style="margin-bottom: 15px; font-weight: bold;">＋ おすすめスポットを追加する</button>
+
+  <div id="add-spot-form" class="spot" style="background-color: #f0f8ff; display: none;">
+    <h3>新しいおすすめスポットを追加する</h3>
     <input type="text" id="new-spot-name" placeholder="スポット名 (必須)" required style="width: 100%; margin-bottom: 10px;"><br>
     <textarea id="new-spot-desc" rows="3" placeholder="スポットの簡単な説明" style="width: 100%; margin-bottom: 10px;"></textarea><br>
     <input type="url" id="new-spot-map" placeholder="Googleマップの共有URL (任意)" style="width: 100%; margin-bottom: 10px;"><br>
@@ -30,6 +32,7 @@
     <input type="file" id="new-spot-image" accept="image/*" style="margin-bottom: 10px;"><br>
     
     <button id="submit-spot-btn" onclick="submitSpot()">スポットを追加して投稿する</button>
+    <button onclick="toggleAddSpotForm()" style="margin-left: 10px;">キャンセル</button>
   </div>
 
   <div id="spot-list">読み込み中...</div>
@@ -41,7 +44,13 @@
   <a id="board-map-link" href="#" target="_blank" style="display:none; color: #1a73e8; font-weight: bold; text-decoration: none;">🗺️ Googleマップで開く</a>
 
   <div class="spot">
-    <h3>新しく投稿する</h3>
+    <h3 id="post-form-title">新しく投稿する</h3>
+    
+    <div id="reply-info" style="display:none; background-color: #e9ecef; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+      <span id="reply-to-text" style="font-weight: bold; margin-right: 10px;"></span>
+      <button onclick="cancelReply()">キャンセル</button>
+    </div>
+
     <input type="text" id="post-name" placeholder="名前 (未入力で匿名)" style="width: 100%; margin-bottom: 10px;"><br>
     <textarea id="post-content" rows="4" placeholder="本文" required style="width: 100%; margin-bottom: 10px;"></textarea><br>
     <input type="file" id="post-image" accept="image/*" style="margin-bottom: 10px;"><br>
@@ -55,10 +64,25 @@
   <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycby8fCHjI5tTeWNItVvOrIDobnQIRzeYRbBF3Qn96Ed6wcypksV72BJKUGiv81C2v63loQ/exec';
     let currentSpotId = '';
+    let currentParentId = '';
+    let currentParentName = '';
+
+    function toggleAddSpotForm() {
+      const form = document.getElementById('add-spot-form');
+      const btn = document.getElementById('toggle-form-btn');
+      if (form.style.display === 'none' || form.style.display === '') {
+        form.style.display = 'block';
+        btn.style.display = 'none';
+      } else {
+        form.style.display = 'none';
+        btn.style.display = 'inline-block';
+      }
+    }
 
     function showTop() {
       document.getElementById('top').style.display = 'block';
       document.getElementById('board').style.display = 'none';
+      cancelReply(); // 画面遷移時に返信状態をリセットする
     }
 
     function showBoard(spotId, spotName, mapUrl) {
@@ -76,6 +100,24 @@
       }
       
       loadPosts();
+    }
+
+    // 返信ボタンを押した際の処理
+    function setReply(postId, postName) {
+      currentParentId = postId;
+      currentParentName = postName || '匿名';
+      document.getElementById('post-form-title').innerText = '返信する';
+      document.getElementById('reply-info').style.display = 'block';
+      document.getElementById('reply-to-text').innerText = '>> ' + currentParentName + ' さんへの返信';
+      document.getElementById('post-content').focus();
+    }
+
+    // 返信をキャンセルする処理
+    function cancelReply() {
+      currentParentId = '';
+      currentParentName = '';
+      document.getElementById('post-form-title').innerText = '新しく投稿する';
+      document.getElementById('reply-info').style.display = 'none';
     }
 
     window.onload = async function() {
@@ -135,11 +177,22 @@
         data.forEach(post => {
           const div = document.createElement('div');
           div.className = 'post';
-          let htmlContent = `<strong>${post.name}</strong> <small>(${post.date})</small><br><br>${post.content}`;
+          
+          let replyHtml = '';
+          // 返信の場合はデザインを変更して宛先を表示する
+          if (post.parentId) {
+            replyHtml = `<div style="font-size: 0.85em; color: #555; background: #f0f0f0; padding: 5px; border-radius: 3px; margin-bottom: 10px;">>> ${post.parentName || '匿名'} さんへの返信</div>`;
+            div.style.marginLeft = '20px';
+            div.style.borderLeft = '3px solid #ccc';
+          }
+          
+          let htmlContent = `${replyHtml}<strong>${post.name}</strong> <small>(${post.date})</small><br><br>${post.content}`;
           
           if (post.imageUrl) {
             htmlContent += `<br><img src="${post.imageUrl}" style="max-width: 100%; max-height: 300px; margin-top: 10px;">`;
           }
+          
+          htmlContent += `<br><button onclick="setReply('${post.id}', '${post.name}')" style="margin-top: 10px; font-size: 0.9em;">返信する</button>`;
           
           div.innerHTML = htmlContent;
           list.appendChild(div);
@@ -187,7 +240,9 @@
           content: content,
           imageB64: imageB64,
           imageMime: imageMime,
-          imageName: imageName
+          imageName: imageName,
+          parentId: currentParentId,      // 親投稿IDを送信
+          parentName: currentParentName   // 親投稿者名を送信
         };
 
         try {
@@ -206,6 +261,7 @@
             loadPosts();
             submitBtn.disabled = false;
             submitBtn.innerText = '送信';
+            cancelReply(); // 送信完了後に返信状態をリセットする
           }, 1500); 
         } catch (e) {
           alert('通信エラーが発生しました。');
@@ -285,6 +341,11 @@
             loadSpots(); 
             submitBtn.disabled = false;
             submitBtn.innerText = 'スポットを追加して投稿する';
+            
+            const form = document.getElementById('add-spot-form');
+            const btn = document.getElementById('toggle-form-btn');
+            form.style.display = 'none';
+            btn.style.display = 'inline-block';
           }, 1500); 
         } catch (e) {
           alert('通信エラーが発生しました。');
