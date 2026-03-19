@@ -16,9 +16,13 @@
 <div id="top">
   <h1>宮崎県 おすすめスポット</h1>
   
+<<<<<<< HEAD
   <button id="toggle-form-btn" onclick="toggleAddSpotForm()" style="margin-bottom: 15px; font-weight: bold;">＋ おすすめスポットを追加する</button>
 
   <div id="add-spot-form" class="spot" style="background-color: #f0f8ff; display: none;">
+=======
+  <div class="spot" style="background-color: #f0f8ff;">
+>>>>>>> 2baa12b (リポジトリを作成)
     <h3>新しいおすすめスポットを追加する</h3>
     <input type="text" id="new-spot-name" placeholder="スポット名 (必須)" required style="width: 100%; margin-bottom: 10px;"><br>
     <textarea id="new-spot-desc" rows="3" placeholder="スポットの簡単な説明" style="width: 100%; margin-bottom: 10px;"></textarea><br>
@@ -32,7 +36,10 @@
     <input type="file" id="new-spot-image" accept="image/*" style="margin-bottom: 10px;"><br>
     
     <button id="submit-spot-btn" onclick="submitSpot()">スポットを追加して投稿する</button>
+<<<<<<< HEAD
     <button onclick="toggleAddSpotForm()" style="margin-left: 10px;">キャンセル</button>
+=======
+>>>>>>> 2baa12b (リポジトリを作成)
   </div>
 
   <div id="spot-list">読み込み中...</div>
@@ -58,18 +65,6 @@
   <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycby8fCHjI5tTeWNItVvOrIDobnQIRzeYRbBF3Qn96Ed6wcypksV72BJKUGiv81C2v63loQ/exec';
     let currentSpotId = '';
-
-    function toggleAddSpotForm() {
-      const form = document.getElementById('add-spot-form');
-      const btn = document.getElementById('toggle-form-btn');
-      if (form.style.display === 'none' || form.style.display === '') {
-        form.style.display = 'block';
-        btn.style.display = 'none';
-      } else {
-        form.style.display = 'none';
-        btn.style.display = 'inline-block';
-      }
-    }
 
     function showTop() {
       document.getElementById('top').style.display = 'block';
@@ -300,12 +295,6 @@
             loadSpots(); 
             submitBtn.disabled = false;
             submitBtn.innerText = 'スポットを追加して投稿する';
-            
-            // 追加完了後にフォームを閉じる
-            const form = document.getElementById('add-spot-form');
-            const btn = document.getElementById('toggle-form-btn');
-            form.style.display = 'none';
-            btn.style.display = 'inline-block';
           }, 1500); 
         } catch (e) {
           alert('通信エラーが発生しました。');
